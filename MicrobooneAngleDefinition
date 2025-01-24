@@ -1,0 +1,306 @@
+//Author: Joel Elias May 2023
+vector<float> BoostToCM(vector<float> p1,vector<float> p2,vector<float> v){
+
+  //in cpp you define your functions before your "main()" program, "MicroBooneAngle()" in this case. We are currently inside the "BoostToCM()"
+  //which takes as inputs 3 vectors, the leading nucleon's 4 momentum "p1", the second nucleon's 4 momentum "p2", and the vector you'd like to boost "v"
+
+  // first we define the relativistic quantities Beta and Gamma, we are using natural units c=h=1 and energies are in GeV.
+  // the quantities that I define below come from the lorentz transformation matrix. I watched this video: https://www.youtube.com/watch?v=Afd34FuG65A
+  // the matrix come around at 5 minutes.
+  float Bx=(p1[1]+p2[1])/(p1[0]+p2[0]); // These are the components for Beta=v/c in the x,y, and z direction. we use the sum of p1 and p2 to define them
+  float By=(p1[2]+p2[2])/(p1[0]+p2[0]);
+  float Bz=(p1[3]+p2[3])/(p1[0]+p2[0]);
+  float B_sqrd=Bx*Bx+By*By+Bz*Bz;
+  //....
+  float gamma = 1/sqrt(1-B_sqrd); // just the textbook definition of Gamma
+  //....
+  float l11 = gamma; //These are the components of the 4x4 matrix. Notice how there are only 10 unique elements
+  float l22 = 1+(gamma-1)*(Bx*Bx)/B_sqrd;
+  float l33 = 1+(gamma-1)*(By*By)/B_sqrd;
+  float l44 = 1+(gamma-1)*(Bz*Bz)/B_sqrd;
+  float l12 = -gamma*Bx;
+  float l13 = -gamma*By;
+  float l14 = -gamma*Bz;
+  float l23 = (gamma-1)*Bx*By/B_sqrd;
+  float l24 = (gamma-1)*Bx*Bz/B_sqrd;
+  float l34 = (gamma-1)*By*Bz/B_sqrd;
+
+  vector<float> vCM (4); //here i initiate the variable to be filled by the function
+
+  vCM[0]=v[0]*l11+v[1]*l12+v[2]*l13+v[3]*l14; //if you write out the above elements in matrix form, these are the result of matrix multiplication
+  vCM[1]=v[0]*l12+v[1]*l22+v[2]*l23+v[3]*l24; //I would double check this
+  vCM[2]=v[0]*l13+v[1]*l23+v[2]*l33+v[3]*l34;
+  vCM[3]=v[0]*l14+v[1]*l24+v[2]*l34+v[3]*l44;
+
+  return vCM; //return our boosted vector
+
+}
+
+
+
+
+void MicroBooneAngle() {
+
+  TFile *file = new TFile("flat_GENIE_G18_10a_02_11a_50M.root","update");
+
+  // Delete the previous version of FlatTree_VARS to prevent naming conflict
+  if(file->GetListOfKeys()->Contains("FlatTree_VARS")){
+    file->Delete("FlatTree_VARS;2");
+    file->Write();
+  }
+
+  TTree *tree = (TTree*)file->Get("FlatTree_VARS");
+
+  int nentries = tree->GetEntries();
+  //in cpp you have to "initiate" your variables before you call them. initiating them involves setting there name and the class, int, bool, float, etc.
+  const int nmax = 100;
+  bool flagCC0piMINERvA_STV;
+  float Energy[nmax];
+  float px[nmax];
+  float py[nmax];
+  float pz[nmax];
+  int pdg[nmax];
+  int pdg_vert[nmax];
+  int Mode;
+  int nfsp;
+  int nvertp;
+  float dphit;
+  float dalphat;
+  float pfrac_proton;
+  int ninitp;
+  float px_init[nmax];
+  float py_init[nmax];
+  float pz_init[nmax];
+  float E_init[nmax];
+  int pdg_init[nmax];
+  float microbooneAngle;
+  TBranch* bangle = tree->Branch("microbooneAngle", &microbooneAngle, "microbooneAngle/F");
+
+  vector<float> p1 (4); //momentum 4 vector for first nucleon
+  vector<float> p2 (4); //momentum 4 vector for second nucleon
+  vector<float> diff_four_momentum_vec (4); //difference between neutrino momentum and muon momentum
+
+  //here I am telling root/cpp what variables I want to use in the file, and how to find them
+  tree->SetBranchStatus("flagCC0piMINERvA_STV", true);
+  tree->SetBranchAddress("flagCC0piMINERvA_STV", &flagCC0piMINERvA_STV);
+  tree->SetBranchStatus("E", true);
+  tree->SetBranchAddress("E", &Energy);
+  tree->SetBranchStatus("px", true);
+  tree->SetBranchAddress("px", &px);
+  tree->SetBranchStatus("py", true);
+  tree->SetBranchAddress("py", &py);
+  tree->SetBranchStatus("pz", true);
+  tree->SetBranchAddress("pz", &pz);
+  tree->SetBranchStatus("pdg", true);
+  tree->SetBranchAddress("pdg", &pdg);
+  tree->SetBranchStatus("Mode", true);
+  tree->SetBranchAddress("Mode", &Mode);
+  tree->SetBranchStatus("nfsp", true);
+  tree->SetBranchAddress("nfsp", &nfsp);
+  tree->SetBranchStatus("nvertp", true);
+  tree->SetBranchAddress("nvertp", &nvertp);
+  tree->SetBranchStatus("pdg_vert", true);
+  tree->SetBranchAddress("pdg_vert", &pdg_vert);
+  tree->SetBranchStatus("ninitp", true);
+  tree->SetBranchAddress("ninitp", &ninitp);
+  tree->SetBranchStatus("px_init", true);
+  tree->SetBranchAddress("px_init", &px_init);
+  tree->SetBranchStatus("py_init", true);
+  tree->SetBranchAddress("py_init", &py_init);
+  tree->SetBranchStatus("pz_init", true);
+  tree->SetBranchAddress("pz_init", &pz_init);
+  tree->SetBranchStatus("E_init", true);
+  tree->SetBranchAddress("E_init", &E_init);
+  tree->SetBranchStatus("pdg_init", true);
+  tree->SetBranchAddress("pdg_init", &pdg_init);
+  tree->SetBranchStatus("fScaleFactor",true);
+  double scale = tree->GetMaximum("fScaleFactor");
+
+  //there are individual entries for each simulated event. Here we look through every GetEntry
+  for (int i = 0; i < nentries; ++i) { //Loop events
+    tree->GetEntry(i);
+
+    int cindex = 0;
+    int pIndex = 0;
+    int nIndex = 0;
+    int mIndex = 0;
+    int nProtons = 0;
+    int nNeutrons = 0;
+    int nMuons = 0;
+    float pmag = 0;
+    float vectordiff = 0;
+    vector<int> pIndexList;
+    vector<double> pmomentumList;
+
+   if (i % (nentries/100) == 0) std::cout << i << "/" << nentries << " (" << (double(i)/nentries)*100 << "%)" << std::endl;
+
+   int np = 0;
+   int nn = 0;
+   for (int r=0; r <nvertp; ++r){ //begin nvertp loop. We loop through all particles in the vertex
+     if (pdg_vert[r]==2000000201) {
+       np++;
+     } else if (pdg_vert[r]==2000000200) {
+       nn++;
+     } else {
+       continue;
+     }
+   }//end nvertp loop
+
+   //if (nn==0 && np==0) continue;
+
+int nuIndex;
+float nu_four_momentum[4];
+
+for (int j=0; j < ninitp; ++j){ // loop through all the particles in the initial state
+
+   if (pdg_init[j]==14){ // if muon neutrino
+       float nu_p = sqrt(px_init[j]*px_init[j]+py_init[j]*py_init[j]+pz_init[j]*pz_init[j]);
+       float nu_E = E_init[j];
+       nu_four_momentum[0] = nu_E;
+       nu_four_momentum[1] = px_init[j];
+       nu_four_momentum[2] = py_init[j];
+       nu_four_momentum[3] = pz_init[j];
+       nuIndex = j;
+   }
+}
+   for (int j=0; j <nfsp; ++j){ //begin nfsp loop, we loop through all the particles in the final state
+
+     if (pdg[j]==2212) {//if proton
+       double p_p = sqrt(px[j]*px[j]+py[j]*py[j]+pz[j]*pz[j]);
+       pIndex = j;
+       nProtons++;
+       pIndexList.push_back(j);
+       pmomentumList.push_back(p_p);
+
+     } else if (pdg[j]==2112) {
+       nIndex = j;
+       nNeutrons++;
+
+     } else if (pdg[j]==13) {//if Muon
+       mIndex = j;
+       nMuons++;//increase muon count only if it passes the cuts
+     } else{
+              continue;
+     }
+    }//end nsfp loop
+     //}
+     if (nNeutrons==1 && nProtons!=0 && nMuons==1){ //nn event
+       int maxpIndex = pIndexList[max_element(pmomentumList.begin(),pmomentumList.end())-pmomentumList.begin()];
+
+       float leading_p = sqrt((px[maxpIndex])*(px[maxpIndex])+(py[maxpIndex])*(py[maxpIndex])+(pz[maxpIndex])*(pz[maxpIndex]));
+       p1[0]=Energy[maxpIndex];
+       p1[1]=px[maxpIndex];
+       p1[2]=py[maxpIndex];
+       p1[3]=pz[maxpIndex];
+
+       float second_p = sqrt((px[nIndex])*(px[nIndex])+(py[nIndex])*(py[nIndex])+(pz[nIndex])*(pz[nIndex]));
+       p2[1]=px[nIndex];
+       p2[2]=py[nIndex];
+       p2[3]=pz[nIndex];
+       p2[0]=Energy[nIndex];
+        vector<float> p1boosted=BoostToCM(p1,p2,p1); //boost p1
+        vector<float> p2boosted=BoostToCM(p1,p2,p2); //boost p2
+
+        // Added the muon four-momentum here
+        float muon_p = sqrt((px[mIndex])*(px[mIndex])+(py[mIndex])*(py[mIndex])+(pz[mIndex])*(pz[mIndex]));
+        float muon_E = Energy[mIndex];
+
+        float muon_four_momentum[4];
+        muon_four_momentum[0] = muon_E;
+        muon_four_momentum[1] = px[mIndex];
+        muon_four_momentum[2] = py[mIndex];
+        muon_four_momentum[3] = pz[mIndex];
+
+    //define microboone angle
+
+    //spatial components of p1boosted
+    TVector3 p1boosted_spatial(p1boosted[1], p1boosted[2], p1boosted[3]); 
+
+    // four-momentum difference vector, directly subtracting vectors
+
+    diff_four_momentum_vec[0] = nu_four_momentum[0] - muon_four_momentum[0];
+    diff_four_momentum_vec[1] = nu_four_momentum[1] - muon_four_momentum[1];
+    diff_four_momentum_vec[2] = nu_four_momentum[2] - muon_four_momentum[2];
+    diff_four_momentum_vec[3] = nu_four_momentum[3] - muon_four_momentum[3];
+
+    // boost this difference vector into the center-of-mass frame of p1 and p2
+    vector<float> vector2 = BoostToCM(p1, p2, diff_four_momentum_vec);
+
+    // create a TVector3 from the spatial components of vector2
+    TVector3 vector2_spatial(vector2[1], vector2[2], vector2[3]);
+
+    //cosine of the angle between the two vectors
+    float cosine_angle = p1boosted_spatial.Dot(vector2_spatial) / (p1boosted_spatial.Mag() * vector2_spatial.Mag());
+
+    //angle between the two vectors
+    microbooneAngle = acos(cosine_angle) * (180.0 / TMath::Pi());
+
+
+} else if (nProtons>1 && nNeutrons==0 && nMuons==1) { //np event
+       int maxpIndex = pIndexList[max_element(pmomentumList.begin(),pmomentumList.end())-pmomentumList.begin()];
+       pmomentumList[max_element(pmomentumList.begin(),pmomentumList.end())-pmomentumList.begin()]=0;
+       int nextpIndex = pIndexList[max_element(pmomentumList.begin(),pmomentumList.end())-pmomentumList.begin()];
+
+       float leading_p = sqrt((px[maxpIndex])*(px[maxpIndex])+(py[maxpIndex])*(py[maxpIndex])+(pz[maxpIndex])*(pz[maxpIndex]));
+       p1[0]=Energy[maxpIndex];
+       p1[1]=px[maxpIndex];
+       p1[2]=py[maxpIndex];
+       p1[3]=pz[maxpIndex];
+
+       float second_p = sqrt((px[nextpIndex])*(px[nextpIndex])+(py[nextpIndex])*(py[nextpIndex])+(pz[nextpIndex])*(pz[nextpIndex]));
+       p2[1]=px[nextpIndex];
+       p2[2]=py[nextpIndex];
+       p2[3]=pz[nextpIndex];
+       p2[0]=Energy[nextpIndex];
+       vector<float> p1boosted=BoostToCM(p1,p2,p1); //boost p1
+       vector<float> p2boosted=BoostToCM(p1,p2,p2); //boost p2
+
+        // Added the muon four-momentum here
+        float muon_p = sqrt((px[mIndex])*(px[mIndex])+(py[mIndex])*(py[mIndex])+(pz[mIndex])*(pz[mIndex]));
+        float muon_E = Energy[mIndex];
+
+        float muon_four_momentum[4];
+        muon_four_momentum[0] = muon_E;
+        muon_four_momentum[1] = px[mIndex];
+        muon_four_momentum[2] = py[mIndex];
+        muon_four_momentum[3] = pz[mIndex];
+
+    //define microboone angle
+
+    //spatial components of p1boosted
+    TVector3 p1boosted_spatial(p1boosted[1], p1boosted[2], p1boosted[3]); 
+
+    // four-momentum difference vector, directly subtracting vectors
+    vector<float> diff_four_momentum_vec(4);
+    diff_four_momentum_vec[0] = nu_four_momentum[0] - muon_four_momentum[0];
+    diff_four_momentum_vec[1] = nu_four_momentum[1] - muon_four_momentum[1];
+    diff_four_momentum_vec[2] = nu_four_momentum[2] - muon_four_momentum[2];
+    diff_four_momentum_vec[3] = nu_four_momentum[3] - muon_four_momentum[3];
+
+    // boost this difference vector into the center-of-mass frame of p1 and p2
+    vector<float> vector2 = BoostToCM(p1, p2, diff_four_momentum_vec);
+
+    // create a TVector3 from the spatial components of vector2
+    TVector3 vector2_spatial(vector2[1], vector2[2], vector2[3]);
+
+    //cosine of the angle between the two vectors
+    float cosine_angle = p1boosted_spatial.Dot(vector2_spatial) / (p1boosted_spatial.Mag() * vector2_spatial.Mag());
+
+    
+
+    //angle between the two vectors
+    microbooneAngle = acos(cosine_angle) * (180.0 / TMath::Pi());
+
+    // Print the progress every 20% of the total entries
+    if (i % (nentries/100) == 0) std::cout << i << "/" << nentries << " (" << (double(i)/nentries)*100 << "%)" << std::endl;
+
+   }//end event loop
+
+    else{
+      microbooneAngle=-999;
+    }
+    bangle->Fill();
+  }
+  file->Write();
+  file->Close();
+ }
