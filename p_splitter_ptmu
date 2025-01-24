@@ -1,0 +1,331 @@
+#include <TFile.h>
+#include <TTree.h>
+#include <TEventList.h>
+#include <TH2D.h>
+#include <TStyle.h>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <string>
+#include <TArrayD.h>
+
+void p_splitter_ptmu() {
+
+        //Data division dimensions
+        //Columns corresponds to the x axis variable
+        int columns = 3;
+        //Rows corresponds to the y axis variable
+        int rows = 3;
+
+        //choosing the variable on the x axis for data divisions
+        TString xAxis = "microbooneAngle";
+        //min and max values for x axis variable
+        double absoluteMaxX = 180;
+        double absoluteMinX = 0.0;
+
+        //choosing the variable on the y axis for data divisions
+        TString yAxis = "q0/q3";
+        //min and max values for y axis variable
+        double absoluteMaxY = 1.0;
+        double absoluteMinY = 0.0;
+
+        //Histogram variables
+        TString histXaxis = "ptmu";
+        TString histYaxis = "dpt";
+
+        // Open the file and get the TTree
+        TFile *file = TFile::Open("flat_GENIE_G18_10a_02_11a_50M.root");
+        TTree *tree = (TTree*)file->Get("FlatTree_VARS");
+
+        // Selection criteria
+        TString baseCriteria = "flagCC0piMINERvA_STV && Mode==2 && ptmu>-999 && microbooneAngle>-999";
+
+    //Read in filesp
+    std::ifstream infile("h_dpt_ptmu_boundaries.tsv");
+    if (!infile.is_open()) {
+        std::cerr << "Failed to open the file." << std::endl;
+    }
+
+    std::vector<std::vector<double>> dptBinBounds = {
+        {0.0, 0.1, 0.15000000000000002, 0.2, 0.25, 0.30000000000000004, 0.35000000000000003, 0.4, 0.45, 0.5, 0.55, 0.65, 0.75, 2.5},
+        {0.0, 0.1, 0.15000000000000002, 0.2, 0.25, 0.30000000000000004, 0.35000000000000003, 0.45, 0.5, 0.55, 0.65, 0.75, 2.5},
+        {0.0, 0.05, 0.1, 0.15000000000000002, 0.2, 0.25, 0.30000000000000004, 0.35000000000000003, 0.45, 0.55, 0.65, 0.75, 0.8500000000000001, 2.5},
+        {0.0, 0.05, 0.1, 0.15000000000000002, 0.2, 0.25, 0.35000000000000003, 0.4, 0.5, 0.6000000000000001, 0.7000000000000001, 0.8, 0.9, 2.5},
+        {0.0, 0.05, 0.1, 0.15000000000000002, 0.25, 0.35000000000000003, 0.45, 0.5, 0.6000000000000001, 0.7000000000000001, 0.8, 0.9, 1.0, 2.5},
+        {0.0, 0.05, 0.1, 0.15000000000000002, 0.25, 0.35000000000000003, 0.45, 0.55, 0.65, 0.75, 0.8500000000000001, 0.9500000000000001, 1.0, 2.5},
+        {0.0, 0.1, 0.15000000000000002, 0.25, 0.35000000000000003, 0.45, 0.55, 0.65, 0.75, 0.8500000000000001, 0.9500000000000001, 1.0, 2.5},
+        {0.0, 0.15000000000000002, 0.25, 0.35000000000000003, 0.45, 0.55, 0.65, 0.75, 0.8500000000000001, 1.0, 1.2, 2.5},
+        {0.0, 0.25, 0.4, 0.5, 0.6000000000000001, 0.7000000000000001, 0.8, 0.9500000000000001, 1.0, 1.2, 1.4, 2.5},
+        {0.0, 0.45, 0.65, 0.8, 0.9500000000000001, 1.0, 1.2, 1.4, 2.5},
+        {0.0, 0.9500000000000001, 1.2, 1.4, 1.6, 2.5}
+    };
+
+    //Convert to MeV
+    for (auto &bin : dptBinBounds) {
+        for (auto &bound : bin) {
+            bound *= 1000;
+        }
+    }
+
+    // For debugging: print dptBinBounds
+    for (const auto &row : dptBinBounds) {
+        for (double val : row) {
+            std::cout << val << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    //Read in file
+    std::string line;
+
+    // Open the bin file file
+    std::ifstream binfile("h_dpt_ptmu_binning.tsv");
+
+    if (!binfile.is_open()) {
+        std::cerr << "Error opening the file." << std::endl;
+    }
+
+    std::getline(binfile, line);
+
+    // Remove the square brackets from the beginning and end
+    line = line.substr(1, line.size() - 2);
+
+    // Use a stringstream to tokenize the string by comma
+    std::stringstream ss(line);
+    std::string token;
+    std::vector<double> values;
+
+    while (std::getline(ss, token, ',')) {
+        values.push_back(std::stod(token)); // convert the token to double and store in the vector
+    }
+
+    // Close the file
+    binfile.close();
+
+    // Now, create a ROOT 1D array and fill it with the data
+    TArrayD ptmu_dpt_bin(values.size());
+
+    for (size_t i = 0; i < values.size(); i++) {
+        ptmu_dpt_bin[i] = values[i];
+    }
+
+    // Test to see if the values are stored correctly
+    for (int i = 0; i < ptmu_dpt_bin.GetSize(); i++) {
+        std::cout << ptmu_dpt_bin[i] << " ";
+    }
+    std::cout << std::endl;
+
+    //Initialize output array
+    std::vector<std::vector<double>> jaggedArray;  
+    for (int i = 0; i<11; i++){
+        jaggedArray.push_back(std::vector<double>(ptmu_dpt_bin[i], 0.0)); 
+    }
+
+    //ptmu bin boundary values
+    std::vector<double> ptmuBinBounds = {0.0, 0.15, 0.25, 0.33, 0.4, 0.47, 0.55, 0.70, 0.85, 1.0, 1.25, 2.5};
+
+    //initial increment for x axis
+    double initialIncrementX = (absoluteMaxX * .1);
+
+    //initial increment for y axis
+    double initialIncrementY = (absoluteMaxY * .1);
+
+    // Count the total number of events with the selection criteria
+    tree->Draw(">>baseEventList", baseCriteria);
+    TEventList *baseEventList = (TEventList*)gDirectory->Get("baseEventList");
+    Long64_t totalEvents = baseEventList->GetN();
+
+    // Calculate the events per column and division
+    Long64_t eventsPerColumn = totalEvents / columns;
+    Long64_t eventsPerDivision = totalEvents / (columns * rows);
+
+    double minX = 0.0; // minimum considered
+    double incrementX = initialIncrementX; // increment 
+
+    TString array_of_strings[9]; // Declare an array to hold criteria for printing at conclusion of program
+
+    // Loop through each column of divisions 
+    for (int i = 0; i < columns; i++) {
+        incrementX = initialIncrementX; // Reset increment 
+        double maxX = absoluteMaxX; // Initialize to maximum possible value
+        double currentX;
+
+        // Iterate through possible xAxis values
+        Long64_t eventCount = 0;
+        for (currentX = minX + incrementX; currentX < absoluteMaxX; currentX += incrementX) {
+            
+            TString criteria = baseCriteria + Form(" && %s>=%f && %s<%f", xAxis.Data(), minX, xAxis.Data(), currentX);
+            tree->Draw(">>eventList", criteria);
+            TEventList *eventList = (TEventList*)gDirectory->Get("eventList");
+            eventCount = eventList->GetN();
+
+            // For last column, set max to absolute max
+            if (i == (columns - 1)) {
+                maxX = absoluteMaxX;
+                break;
+            }
+
+            // Check if we have reached approximately a column of events/zoom
+            if (eventCount >= eventsPerColumn) {
+                if (incrementX == initialIncrementX) {
+                    currentX -= incrementX;  // Go back one step
+                    incrementX = (initialIncrementX * .1);  // Switch to finer increment
+                } else if (incrementX == (initialIncrementX * .1)) {
+                    currentX -= incrementX;  // Go back one step
+                    incrementX = (initialIncrementX * .01);  // Switch to finer increment
+                } else if (incrementX == (initialIncrementX * .01)) {
+                    currentX -= incrementX;  // Go back one step
+                    incrementX = (initialIncrementX * .001);  // Switch to finer increment
+                } else {
+                    maxX = currentX;
+                    break;
+                }
+            }
+	    }
+
+        // Criteria for current column
+        TString criteriaX = baseCriteria + Form(" && %s>=%f && %s<%f", xAxis.Data(), minX, xAxis.Data(), maxX);
+
+        double minY = 0.0; // minimum y value considered
+        double currentY;
+        double incrementY = initialIncrementY; // increment for y axis
+
+        // Loop through each column division within the current column, divided according to the y axis variable
+        for (int j = 0; j < rows; j++) {
+            double maxY = absoluteMaxY; // Initialize to maximum possible value
+            incrementY = initialIncrementY; // Reset increment
+
+            // Iterate through possible y axis values values
+            Long64_t yeventCount = 0;
+            for (currentY = minY + incrementY; currentY < absoluteMaxY; currentY += incrementY) {
+                TString criteria = criteriaX + Form(" && %s>=%f && %s<%f", yAxis.Data(), minY, yAxis.Data(), currentY);
+                tree->Draw(">>yEventList", criteria);
+                TEventList *yEventList = (TEventList*)gDirectory->Get("yEventList");
+                yeventCount = yEventList->GetN();
+
+                // For last division, set max to absolute max
+                if (j == (rows - 1)) {
+                    maxY = absoluteMaxY;
+                    break;
+                }
+
+                // Check if we have reached approximately a column of events/zoom
+                if (yeventCount >= eventsPerDivision) {
+                    if (incrementY == initialIncrementY) {
+                        currentY -= incrementY;  // Go back one step
+                        incrementY = (initialIncrementY * .1);  // Switch to finer increment
+                    } else if (incrementY == (initialIncrementY * .1)) {
+                        currentY -= incrementY;  // Go back one step
+                        incrementY = (initialIncrementY * .01);  // Switch to finer increment
+                    } else if (incrementY == (initialIncrementY * .01)) {
+                        currentY -= incrementY;  // Go back one step
+                        incrementY = (initialIncrementY * .001);  // Switch to finer increment
+                    } else {
+                        maxY = currentY;
+                        break;
+                    }
+                }
+            }
+
+            // Criteria for current division
+            TString criteriaFinal = criteriaX + Form(" && %s>=%f && %s<%f", yAxis.Data(), minY, yAxis.Data(), maxY);
+            std::cout << "Division Criteria: " << criteriaFinal << std::endl; // Print the final criteria for the division
+            array_of_strings[i]=criteriaFinal;
+
+            // Create a TEventList to hold selected entries
+            TEventList *selectedEvents = new TEventList("selectedEvents");
+            tree->Draw(">>selectedEvents", criteriaFinal, "goff"); 
+
+            // Declare variables for the tree branches
+            Float_t ptmu = 0.0;
+            Float_t dpt = 0.0;
+            Double_t fScaleFactor = 0.0;
+            Float_t microbooneAngle = 0.0;
+            Float_t q0 = 0.0;
+            Float_t q3 = 0.0;
+
+            // Link tree branches to the local variables
+            tree->SetBranchAddress("ptmu", &ptmu);
+            tree->SetBranchAddress("dpt", &dpt);
+            tree->SetBranchAddress("fScaleFactor", &fScaleFactor);
+            tree->SetBranchAddress("microbooneAngle", &microbooneAngle);
+            tree->SetBranchAddress("q0", &q0);
+            tree->SetBranchAddress("q3", &q3);
+
+            Long64_t nSelected = selectedEvents->GetN();
+            std::cout << "Number of selected events: " << nSelected << std::endl; // Print the number of selected events
+
+            // Iterate over each vector within jaggedArray
+            for (auto& innerVec : jaggedArray) {
+                // Use std::fill to set all elements in the inner vector to 0.0
+                std::fill(innerVec.begin(), innerVec.end(), 0.0);
+            }
+
+            for (Long64_t i = 0; i < nSelected; i++) {
+                Long64_t entry = selectedEvents->GetEntry(i);
+                tree->GetEntry(entry);
+                
+                if (i % (nSelected/5) == 0) std::cout << i << "/" << nSelected << " (" << (double(i)/nSelected)*100 << "%)" << std::endl;
+
+                //std::cout << "Processing entry: " << entry << " (Index: " << i << ")" << std::endl; // Print the current entry being processed
+                //std::cout << "ptmu value: " << ptmu << std::endl;
+                //std::cout << "dpt value: " << dpt << std::endl;
+                //std::cout << "MB Angle value: " << microbooneAngle << std::endl;
+                //std::cout << "q0/q3 value: " << q0/q3 << std::endl;
+
+                for (int j = 0; j < ptmuBinBounds.size() - 1; j++) {             
+                    if (ptmu > ptmuBinBounds[j] && ptmu < ptmuBinBounds[j + 1]) {
+                        //std::cout << "ptmu bin number: " << (j + 1) << std::endl;
+                        //std::cout << "ptmu bounds: " << ptmuBinBounds[j] << " - " << ptmuBinBounds[j+1] << std::endl;
+                        for (int k = 0; k < ptmu_dpt_bin[j]; k++) { 
+                            // Convert dptBinBounds values from degrees to radians before comparison
+                            if (dpt > dptBinBounds[j][k] && dpt < dptBinBounds[j][k + 1]) {
+                                //std::cout << "Dpt bin: " << k + 1 << std::endl;
+                                //std::cout << "Dpt range: [" << dptBinBounds[j][k] << " - " << dptBinBounds[j][k + 1] << "]" << std::endl; // Print the matched dpt range
+                                
+                                //std::cout << "jaggedArray[j][k]: " << jaggedArray[j][k] << std::endl;
+                                jaggedArray[j][k] += fScaleFactor;
+                                //std::cout << "jaggedArray[j][k]: " << jaggedArray[j][k] << std::endl;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            // Cleanup
+            delete selectedEvents;
+            
+            // Create histograms for this division and save to the ROOT file
+            TString histName = Form("h_%s_%s_2p2h_Div%dMQ_UR.tsv", histXaxis.Data(), histYaxis.Data(), (rows*i) + j + 1);
+            
+            // Write to a text file
+            std::ofstream outfile(histName);
+            if (!outfile.is_open()) {
+                std::cerr << "Failed to open the file for writing." << std::endl;
+            }
+
+            for (int i = 0; i < jaggedArray.size(); i++) {
+                for (int j = 0; j < jaggedArray[i].size(); j++) {
+                    outfile << "(" << i+1 << "," << j+1 << ") " << jaggedArray[i][j] << std::endl;
+                }
+            }
+
+            outfile.close();
+
+            // Set the new yaxis values for the next iteration
+            minY = maxY;
+        }
+        minX = maxX;
+        // Set the new xaxis values for the next iteration
+    }
+
+    for(int i = 0; i < 9; ++i) {
+    std::cout << array_of_strings[i] << std::endl;
+    }
+
+    // Close the input file
+    file->Close();
+}
