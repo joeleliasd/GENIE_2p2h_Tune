@@ -1,0 +1,47 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <sstream>
+#include "TFile.h"
+#include "TTree.h"
+#include "TChain.h"
+#include "TH1D.h"
+
+void ptmu_MC_Maker() {
+
+  // Open the ROOT file
+  TFile* rootFile = TFile::Open("flat_GENIE_G18_10a_02_11a_50M.root");
+
+  // Get the TTree from the ROOT file
+  TTree* tree = (TTree*) rootFile->Get("FlatTree_VARS");
+  
+  // Create an output ROOT file
+  TFile *outFile = new TFile("ptmu_dphit_MC.root", "UPDATE");
+
+  const Int_t nBins = 7;
+  Double_t degreeBoundaries[nBins+1] = {0.0, 15.0, 40.0, 70.0, 90.0, 120.0, 150.0, 180.0};
+  Double_t binBoundaries[nBins+1];
+
+  // Convert degreeBoundaries to radians and store in binBoundaries
+  for (Int_t i = 0; i < nBins+1; ++i) {
+      binBoundaries[i] = degreeBoundaries[i] * M_PI / 180.0;
+  }
+
+  // Create histogram
+  TH1D *hist = new TH1D("muon_dphit_mc1", "ptmu vs dphit;dphit;Cross section", nBins, binBoundaries);
+
+  // Create the draw command
+  std::string drawCommand = "flagCC0piMINERvA_STV && ptmu<0.15 && ptmu>0.0";
+
+  // Filling the histogram
+  tree->Draw("dphit>>muon_dphit_mc1", Form("fScaleFactor*(%s)", drawCommand.c_str()), "HIST1");
+
+  // Write the histogram to the output file
+  hist->Write();
+
+  // Close the ROOT file
+  outFile->Close();
+
+  // Close the other files
+  rootFile->Close();
+}
