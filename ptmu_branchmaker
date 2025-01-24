@@ -1,0 +1,73 @@
+// Define the function
+void ptmu_branchmaker() {
+
+  // Open the ROOT file in update mode, which allows for modifications
+  TFile *file = new TFile("flat_GENIE_G18_10a_02_11a_50M.root","update");
+
+  // Get the TTree named "FlatTree_VARS" from the file
+  TTree *tree = (TTree*)file->Get("FlatTree_VARS");
+
+  // Get the number of entries (events) in the tree
+  int nentries = tree->GetEntries();
+
+  // Initialize variables
+  const int nmax = 100;
+  float px[nmax];
+  float py[nmax];
+  float pz[nmax];
+  int pdg[nmax];
+  int nfsp;
+  float ptmu;
+
+  // Set the branch status and address for each variable
+  tree->SetBranchStatus("px", true);
+  tree->SetBranchAddress("px", &px);
+  tree->SetBranchStatus("py", true);
+  tree->SetBranchAddress("py", &py);
+  tree->SetBranchStatus("pz", true);
+  tree->SetBranchAddress("pz", &pz);
+  tree->SetBranchStatus("pdg", true);
+  tree->SetBranchAddress("pdg", &pdg);
+  tree->SetBranchStatus("nfsp", true);
+  tree->SetBranchAddress("nfsp", &nfsp);
+
+  // Create a new branch called ptmu to store the transverse momentum of the muon
+  TBranch* bptmu = tree->Branch("ptmu",&ptmu,"ptmu/F");
+
+  // Loop over the entries (events) in the tree
+  for (int i = 0; i < nentries; ++i) { 
+    // Get the i-th entry in the tree
+    tree->GetEntry(i);
+
+    // Initialize the index for muons
+    int mIndex = -1;
+
+    // Print the progress every 20% of the total entries
+    if (i % (nentries/5) == 0) std::cout << i << "/" << nentries << " (" << (double(i)/nentries)*100 << "%)" << std::endl;
+
+    // Loop over the final state particles in the event
+    for (int j=0; j < nfsp; ++j){ 
+
+      // If a muon is found, save its index and break the loop
+      if (pdg[j]==13) { 
+        mIndex = j;
+        break;
+      }
+    }
+
+    // If a muon is found, calculate its transverse momentum
+    if (mIndex != -1){
+      // Calculate ptmu as sqrt(px^2 + py^2)
+      ptmu = sqrt(px[mIndex]*px[mIndex] + py[mIndex]*py[mIndex]);
+    } else {
+      // If no muon is found, set ptmu to -999
+      ptmu = -999;
+    }
+    
+    // Fill the ptmu branch with the calculated value
+    bptmu->Fill();
+  }
+
+  // Write the changes to the file
+  file->Write();
+}
