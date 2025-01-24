@@ -1,0 +1,112 @@
+//Author: Joel Elias May 2023
+
+void pfrac_proton_branchmaker() {
+
+  TFile *file = new TFile("flat_GENIE_G18_10a_02_11a_50M.root","update");
+
+  TTree *tree = (TTree*)file->Get("FlatTree_VARS");
+
+  int nentries = tree->GetEntries();
+
+  const int nmax = 100;
+  bool flagCC0piMINERvA_STV;
+  float px[nmax];
+  float py[nmax];
+  float pz[nmax];
+  int pdg[nmax];
+  int Mode;
+  int nfsp;
+  float dphit;
+  float dalphat;
+  float pfrac_proton;
+
+  tree->SetBranchStatus("flagCC0piMINERvA_STV", true);
+  tree->SetBranchAddress("flagCC0piMINERvA_STV", &flagCC0piMINERvA_STV);
+  tree->SetBranchStatus("px", true);
+  tree->SetBranchAddress("px", &px);
+  tree->SetBranchStatus("py", true);
+  tree->SetBranchAddress("py", &py);
+  tree->SetBranchStatus("pz", true);
+  tree->SetBranchAddress("pz", &pz);
+  tree->SetBranchStatus("pdg", true);
+  tree->SetBranchAddress("pdg", &pdg);
+  tree->SetBranchStatus("Mode", true);
+  tree->SetBranchAddress("Mode", &Mode);
+  tree->SetBranchStatus("nfsp", true);
+  tree->SetBranchAddress("nfsp", &nfsp);
+  tree->SetBranchStatus("fScaleFactor",true);
+  double scale = tree->GetMaximum("fScaleFactor");
+
+  TBranch*bpfrac_proton = tree->Branch("pfrac_proton",&pfrac_proton,"pfrac_proton/F");
+
+
+  for (int i = 0; i < nentries; ++i) { //Loop events ->Fill should be inside this for loop
+    tree->GetEntry(i);
+
+    int cindex = 0;
+    int pIndex = 0;
+    int nIndex = 0;
+    int mIndex = 0;
+    int nProtons = 0;
+    int nNeutrons = 0;
+    int nMuons = 0;
+    float pmag = 0;
+    float vectordiff = 0;
+    vector<int> pIndexList;
+    vector<double> pmomentumList;
+
+    if (i % (nentries/5) == 0) std::cout << i << "/" << nentries << " (" << (double(i)/nentries)*100 << "%)" << std::endl;
+
+    for (int j=0; j <nfsp; ++j){ //begin nfsp loop (number final state particles)
+
+      if (pdg[j]==2212) {//if proton
+        double p_p = sqrt(px[j]*px[j]+py[j]*py[j]+pz[j]*pz[j]);
+        //if (p_p>=1.2 || p_p<=0.45) continue;
+        //double ang = acos(sqrt(pz[j]*pz[j])/p_p)*180./M_PI;
+        //if (ang>=70.) continue;
+        pIndex = j;
+        nProtons++;
+        pIndexList.push_back(j);
+        pmomentumList.push_back(p_p);
+
+      } else if (pdg[j]==2112) {
+        nIndex = j;
+        nNeutrons++;
+
+      } else if (pdg[j]==13) {//if Muon
+        //double p_mu = sqrt(px[j]*px[j]+py[j]*py[j]+pz[j]*pz[j]);
+        //if (p_mu<=1.5) continue; //Add cuts for muon
+        //double ang_mu = acos(sqrt(pz[j]*pz[j])/p_mu)*180./M_PI;
+        //if (ang_mu>=20.) continue;
+        mIndex = j;
+        nMuons++;//increase muon count only if it passes the cuts
+      } else{
+               continue;
+      }
+    }//end nsfp loop
+    //}
+    if (nNeutrons==1 && nProtons!=0 && nMuons==1){
+      int maxpIndex = pIndexList[max_element(pmomentumList.begin(),pmomentumList.end())-pmomentumList.begin()];
+
+      float leading_p = sqrt((px[maxpIndex])*(px[maxpIndex])+(py[maxpIndex])*(py[maxpIndex])+(pz[maxpIndex])*(pz[maxpIndex]));
+      float second_p = sqrt((px[nIndex])*(px[nIndex])+(py[nIndex])*(py[nIndex])+(pz[nIndex])*(pz[nIndex]));
+
+      pfrac_proton=leading_p/(leading_p+second_p);
+
+    } else if (nProtons>1 && nNeutrons==0 && nMuons==1) {
+      int maxpIndex = pIndexList[max_element(pmomentumList.begin(),pmomentumList.end())-pmomentumList.begin()];
+      pmomentumList[max_element(pmomentumList.begin(),pmomentumList.end())-pmomentumList.begin()]=0;
+      int nextpIndex = pIndexList[max_element(pmomentumList.begin(),pmomentumList.end())-pmomentumList.begin()];
+
+      float leading_p = sqrt((px[maxpIndex])*(px[maxpIndex])+(py[maxpIndex])*(py[maxpIndex])+(pz[maxpIndex])*(pz[maxpIndex]));
+      float second_p = sqrt((px[nextpIndex])*(px[nextpIndex])+(py[nextpIndex])*(py[nextpIndex])+(pz[nextpIndex])*(pz[nextpIndex]));
+      pfrac_proton=leading_p/(leading_p+second_p);
+
+    } else{
+      pfrac_proton=-999;
+    }
+    bpfrac_proton->Fill();
+
+  }//end event loop
+     file->Write();
+}
