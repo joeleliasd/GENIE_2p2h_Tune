@@ -1,0 +1,185 @@
+#include <TFile.h>
+#include <TTree.h>
+#include <TEventList.h>
+#include <TH2D.h>
+#include <TStyle.h>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <string>
+#include <TArrayD.h>
+
+// Define a conversion function
+double DegreesToRadians(double degrees) {
+    const double pi = 3.14159265358979323846;
+    return degrees * (pi / 180.0);
+}
+
+void mc_for_ptmu_dpt() {
+
+    // Open the file and get the TTree
+    TFile *file = TFile::Open("flat_GENIE_G18_10a_02_11a_50M.root");
+    TTree *tree = (TTree*)file->Get("FlatTree_VARS");
+    
+    // Selection criteria
+    TString baseCriteria = "flagCC0piMINERvA_STV && microbooneAngle>-999";
+
+    std::vector<std::vector<double>> dptBinBounds = {
+        {0.0, 0.1, 0.15000000000000002, 0.2, 0.25, 0.30000000000000004, 0.35000000000000003, 0.4, 0.45, 0.5, 0.55, 0.65, 0.75, 2.5},
+        {0.0, 0.1, 0.15000000000000002, 0.2, 0.25, 0.30000000000000004, 0.35000000000000003, 0.45, 0.5, 0.55, 0.65, 0.75, 2.5},
+        {0.0, 0.05, 0.1, 0.15000000000000002, 0.2, 0.25, 0.30000000000000004, 0.35000000000000003, 0.45, 0.55, 0.65, 0.75, 0.8500000000000001, 2.5},
+        {0.0, 0.05, 0.1, 0.15000000000000002, 0.2, 0.25, 0.35000000000000003, 0.4, 0.5, 0.6000000000000001, 0.7000000000000001, 0.8, 0.9, 2.5},
+        {0.0, 0.05, 0.1, 0.15000000000000002, 0.25, 0.35000000000000003, 0.45, 0.5, 0.6000000000000001, 0.7000000000000001, 0.8, 0.9, 1.0, 2.5},
+        {0.0, 0.05, 0.1, 0.15000000000000002, 0.25, 0.35000000000000003, 0.45, 0.55, 0.65, 0.75, 0.8500000000000001, 0.9500000000000001, 1.0, 2.5},
+        {0.0, 0.1, 0.15000000000000002, 0.25, 0.35000000000000003, 0.45, 0.55, 0.65, 0.75, 0.8500000000000001, 0.9500000000000001, 1.0, 2.5},
+        {0.0, 0.15000000000000002, 0.25, 0.35000000000000003, 0.45, 0.55, 0.65, 0.75, 0.8500000000000001, 1.0, 1.2, 2.5},
+        {0.0, 0.25, 0.4, 0.5, 0.6000000000000001, 0.7000000000000001, 0.8, 0.9500000000000001, 1.0, 1.2, 1.4, 2.5},
+        {0.0, 0.45, 0.65, 0.8, 0.9500000000000001, 1.0, 1.2, 1.4, 2.5},
+        {0.0, 0.9500000000000001, 1.2, 1.4, 1.6, 2.5}
+    };
+
+    //Convert to MeV
+    for (auto &bin : dptBinBounds) {
+        for (auto &bound : bin) {
+            bound *= 1000;
+        }
+    }
+
+
+    //std::cout << "dptBinBounds[0][0]: " << dptBinBounds[0][0] << std::endl;
+
+    //Read in file
+    std::string line;
+
+    // Open the bin file file
+    std::ifstream binfile("h_dpt_ptmu_binning.tsv");
+
+    if (!binfile.is_open()) {
+        std::cerr << "Error opening the file." << std::endl;
+    }
+
+    std::getline(binfile, line);
+
+    // Remove the square brackets from the beginning and end
+    line = line.substr(1, line.size() - 2);
+
+    // Use a stringstream to tokenize the string by comma
+    std::stringstream ss(line);
+    std::string token;
+    std::vector<double> values;
+
+    while (std::getline(ss, token, ',')) {
+        values.push_back(std::stod(token)); // convert the token to double and store in the vector
+    }
+
+    // Close the file
+    binfile.close();
+
+    // Now, create a ROOT 1D array and fill it with the data
+    TArrayD ptmu_dpt_bin(values.size());
+
+    for (size_t i = 0; i < values.size(); i++) {
+        ptmu_dpt_bin[i] = values[i];
+    }
+
+    // Test to see if the values are stored correctly
+    for (int i = 0; i < ptmu_dpt_bin.GetSize(); i++) {
+        std::cout << ptmu_dpt_bin[i] << " ";
+    }
+    std::cout << std::endl;
+
+    //Initialize output array
+    std::vector<std::vector<double>> jaggedArray;
+    for (int i = 0; i<11; i++){
+        jaggedArray.push_back(std::vector<double>(ptmu_dpt_bin[i], 0.0)); 
+    }
+
+    // Printing out the structure of the jaggedArray
+    for (size_t i = 0; i < jaggedArray.size(); i++) {
+        std::cout << "Row " << i << " size: " << jaggedArray[i].size() << std::endl;
+    }
+
+    //ptmu bin boundary values
+    std::vector<double> ptmuBinBounds = {0.0, 0.15, 0.25, 0.33, 0.4, 0.47, 0.55, 0.70, 0.85, 1.0, 1.25, 2.5}; 
+
+    // Create a TEventList to hold selected entries
+    TEventList *selectedEvents = new TEventList("selectedEvents");
+    tree->Draw(">>selectedEvents", baseCriteria, "goff"); 
+
+    // Declare variables for the tree branches
+    Float_t ptmu = 0.0;
+    Float_t dpt = 0.0;
+    Float_t microbooneAngle = 0.0;
+    Float_t q0 = 0.0;
+    Float_t q3 = 0.0;
+    Double_t fScaleFactor = 0.0;
+
+    // Link tree branches to the local variables
+    tree->SetBranchAddress("ptmu", &ptmu);
+    tree->SetBranchAddress("dpt", &dpt);
+    tree->SetBranchAddress("fScaleFactor", &fScaleFactor); 
+    tree->SetBranchAddress("microbooneAngle", &microbooneAngle);
+    tree->SetBranchAddress("q0", &q0);
+    tree->SetBranchAddress("q3", &q3);
+
+    Long64_t nSelected = selectedEvents->GetN();
+    std::cout << "Number of selected events: " << nSelected << std::endl; // Print the number of selected events
+
+    for (Long64_t i = 0; i < nSelected; i++) {
+        Long64_t entry = selectedEvents->GetEntry(i);
+        tree->GetEntry(entry);
+        
+        if (i % (nSelected/5) == 0) std::cout << i << "/" << nSelected << " (" << (double(i)/nSelected)*100 << "%)" << std::endl;
+        
+        //std::cout << "Processing entry: " << entry << " (Index: " << i << ")" << std::endl; // Print the current entry being processed
+        //std::cout << "ptmu value: " << ptmu << std::endl;
+        //std::cout << "dpt value: " << dpt << std::endl;
+        //std::cout << "MB Angle value: " << microbooneAngle << std::endl;
+        //std::cout << "q0/q3 value: " << q0/q3 << std::endl;
+        
+        for (int j = 0; j < ptmuBinBounds.size() - 1; j++) {
+            if (ptmu > ptmuBinBounds[j] && ptmu < ptmuBinBounds[j + 1]) {
+                //std::cout << "ptmu bin number: " << (j + 1) << std::endl;
+                //std::cout << "ptmu bounds: " << ptmuBinBounds[j] << " - " << ptmuBinBounds[j+1] << std::endl;
+                for (int k = 0; k < ptmu_dpt_bin[j]; k++) { 
+                    //std::cout << "k: " << k << std::endl;
+                    //std::cout << "j: " << j << std::endl;
+                    //std::cout << "jaggedArray[j][k]: " << jaggedArray[j][k] << std::endl;
+                    //std::cout << "dptBinBounds[j][k]: " << dptBinBounds[j][k] << std::endl;
+                    if (dpt > dptBinBounds[j][k] && dpt < dptBinBounds[j][k + 1]) {
+                        //std::cout << "Dpt bin: " << k + 1 << std::endl;
+                        //std::cout << "Dpt range: [" << dptBinBounds[j][k] << " - " << dptBinBounds[j][k + 1] << "]" << std::endl; // Print the matched dpt range
+                        jaggedArray[j][k] += fScaleFactor;
+                        //std::cout << "jaggedArray[j][k]: " << jaggedArray[j][k] << std::endl;
+                        break;
+                    }                  
+                }
+                break;
+            }
+        }
+    }
+    
+    // Cleanup
+    delete selectedEvents;
+    
+    // Create name of histogram
+    TString histName = "ptmu_dpt_MC_2p2h.tsv";
+
+    // Write to a text file
+    std::ofstream outfile(histName);
+    if (!outfile.is_open()) {
+        std::cerr << "Failed to open the file for writing." << std::endl;
+    }
+
+    for (int i = 0; i < jaggedArray.size(); i++) {
+        for (int j = 0; j < jaggedArray[i].size(); j++) {
+            outfile << "(" << i+1 << "," << j+1 << ") " << jaggedArray[i][j] << std::endl;
+        }
+    }
+    outfile.close();
+
+    // Close the input file
+    file->Close();
+}
+
