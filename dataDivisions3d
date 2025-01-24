@@ -1,0 +1,231 @@
+#include <TFile.h>
+#include <TTree.h>
+#include <TEventList.h>
+#include <TH2D.h>
+#include <TStyle.h>
+#include <iostream>
+
+void divideData3d() {
+    gStyle->SetOptStat(0);
+    gStyle->SetPalette(87);
+
+//The only thing you should have to adjust for different variables is the indented stuff below
+//As it's written now, it makes divisions in about 20 minutes
+
+        //Data division dimensions
+        //Columns corresponds to the x axis variable
+        int columns = 3;
+        //Rows corresponds to the y axis variable
+        int rows = 3;
+        //zRows corresponds to the z axis variable
+        int zRows = 3;
+
+        //choosing the variable on the x axis for data divisions
+        TString xAxis = "microbooneAngle";
+        //min and max values for x axis variable
+        double absoluteMaxX = 180;
+        double absoluteMinX = 0.0;
+
+        //choosing the variable on the y axis for data divisions
+        TString yAxis = "q0/q3";
+        //min and max values for y axis variable
+        double absoluteMaxY = 1.0;
+        double absoluteMinY = 0.0;
+
+        //choosing the variable on the y axis for data divisions
+        TString zAxis = "q3";
+        //min and max values for y axis variable
+        double absoluteMaxZ = 1.3;
+        double absoluteMinZ = 0.0;
+
+        //Histogram variables
+        TString histXaxis = "dalphat";
+        TString histYaxis = "dphit";
+        //Histogram bins
+        int histXbins = 14;
+        int histYbins = 36;
+
+        //hist min and max values
+        double histMinX = 0.0;
+        double histMaxX = TMath::Pi();
+
+        double histMinY = 0.0;
+        double histMaxY = TMath::Pi();
+        
+        // Open the file and get the TTree
+        TFile *file = TFile::Open("flat_GENIE_G18_10a_02_11a_50M.root");
+        TTree *tree = (TTree*)file->Get("FlatTree_VARS");
+
+        // Selection criteria
+        TString baseCriteria = "flagCC0piMINERvA_STV && Mode==2 && microbooneAngle>-999";
+
+        // Create an output file to store all histograms
+        TFile *outputFile = new TFile("dataDivisions3d.root", "RECREATE");
+
+    //initial increment for x axis
+    double initialIncrementX = (absoluteMaxX * .1);
+
+    //initial increment for y axis
+    double initialIncrementY = (absoluteMaxY * .1);
+
+    //initial increment for y axis
+    double initialIncrementZ = (absoluteMaxZ * .1);
+
+    // Count the total number of events with the selection criteria
+    tree->Draw(">>baseEventList", baseCriteria);
+    TEventList *baseEventList = (TEventList*)gDirectory->Get("baseEventList");
+    Long64_t totalEvents = baseEventList->GetN();
+
+    // Calculate the events per column and division
+    Long64_t eventsPerColumn = totalEvents / columns;
+    Long64_t eventsPerDivision = totalEvents / (columns * rows);
+    Long64_t eventsPerZDivision = totalEvents / (columns * rows * zRows);
+
+    double minX = 0.0; // minimum considered
+    double incrementX = initialIncrementX; // increment
+
+    // Loop through each column of divisions 
+    for (int i = 0; i < columns; i++) {
+        incrementX = initialIncrementX; // Reset increment 
+        double maxX = absoluteMaxX; // Initialize to maximum possible value
+        double currentX;
+
+        Long64_t eventCount = 0;
+        for (currentX = minX + incrementX; currentX <= (absoluteMaxX + incrementX); currentX += incrementX) {
+
+            TString criteria = baseCriteria + Form(" && %s>=%f && %s<%f", xAxis.Data(), minX, xAxis.Data(), currentX);
+            tree->Draw(">>eventList", criteria);
+            TEventList *eventList = (TEventList*)gDirectory->Get("eventList");
+            eventCount = eventList->GetN();
+
+            if (i == (columns - 1)) {
+                maxX = absoluteMaxX;
+                break;
+            }
+
+            if (eventCount >= eventsPerColumn) {
+                if (incrementX == initialIncrementX) {
+                    currentX -= incrementX;  // Go back one step
+                    incrementX = (initialIncrementX * .1);  // Switch to finer increment
+                } else if (incrementX == (initialIncrementX * .1)) {
+                    currentX -= incrementX;  // Go back one step
+                    incrementX = (initialIncrementX * .01);  // Switch to finer increment
+                } else if (incrementX == (initialIncrementX * .01)) {
+                    currentX -= incrementX;  // Go back one step
+                    incrementX = (initialIncrementX * .001);  // Switch to finer increment
+                } else {
+                    maxX = currentX;
+                    break;
+                }
+            }
+        }
+
+        TString criteriaX = baseCriteria + Form(" && %s>=%f && %s<%f", xAxis.Data(), minX, xAxis.Data(), maxX);
+
+        double minY = 0.0; // minimum y value considered
+        double currentY;
+        double incrementY = initialIncrementY; // increment for y axis
+
+        // Loop through each column division within the current column, divided according to the y axis variable
+        for (int j = 0; j < rows; j++) {
+            double maxY = absoluteMaxY; // Initialize to maximum possible value
+            incrementY = initialIncrementY; // Reset increment
+
+            Long64_t yeventCount = 0;
+            for (currentY = minY + incrementY; currentY <= (absoluteMaxY + incrementY); currentY += incrementY) {
+                TString criteria = criteriaX + Form(" && %s>=%f && %s<%f", yAxis.Data(), minY, yAxis.Data(), currentY);
+                tree->Draw(">>yEventList", criteria);
+                TEventList *yEventList = (TEventList*)gDirectory->Get("yEventList");
+                yeventCount = yEventList->GetN();
+
+                if (j == (rows - 1)) {
+                    maxY = absoluteMaxY;
+                    break;
+                }
+                
+                // Check if we have reached approximately a column of events/zoom
+                if (yeventCount >= eventsPerDivision) {
+                    if (incrementY == initialIncrementY) {
+                        currentY -= incrementY;  // Go back one step
+                        incrementY = (initialIncrementY * .1);  // Switch to finer increment
+                    } else if (incrementY == (initialIncrementY * .1)) {
+                        currentY -= incrementY;  // Go back one step
+                        incrementY = (initialIncrementY * .01);  // Switch to finer increment
+                    } else if (incrementY == (initialIncrementY * .01)) {
+                        currentY -= incrementY;  // Go back one step
+                        incrementY = (initialIncrementY * .001);  // Switch to finer increment
+                    } else {
+                        maxY = currentY;
+                        break;
+                    }
+                }
+            }
+            
+            // Criteria for current division
+            TString criteriaY = criteriaX + Form(" && %s>=%f && %s<%f", yAxis.Data(), minY, yAxis.Data(), maxY);
+
+            double minZ = 0.0; // minimum z value considered
+            double currentZ;
+            double incrementZ = initialIncrementZ; // increment for z axis
+
+            // Loop through each column division within the current column, divided according to the z axis variable
+            for (int k = 0; k < zRows; k++) {
+                double maxZ = absoluteMaxZ; // Initialize to maximum possible value
+                incrementZ = initialIncrementZ; // Reset increment
+
+                Long64_t zeventCount = 0;
+                for (currentZ = minZ + incrementZ; currentZ <= (absoluteMaxZ + incrementZ); currentZ += incrementZ) {
+                    TString criteria = criteriaY + Form(" && %s>=%f && %s<%f", zAxis.Data(), minZ, zAxis.Data(), currentZ);
+                    tree->Draw(">>zEventList", criteria);
+                    TEventList *zEventList = (TEventList*)gDirectory->Get("zEventList");
+                    zeventCount = zEventList->GetN();
+
+                    if (k == (zRows - 1)) {
+                        maxZ = absoluteMaxZ;
+                        break;
+                    }
+                    
+                // Check if we have reached approximately a division of events/zoom
+                if (zeventCount >= eventsPerZDivision) {
+                    if (incrementZ == initialIncrementZ) {
+                        currentZ -= incrementZ;  // Go back one step
+                        incrementZ = (initialIncrementZ * .1);  // Switch to finer increment
+                    } else if (incrementZ == (initialIncrementZ * .1)) {
+                        currentZ -= incrementZ;  // Go back one step
+                        incrementZ = (initialIncrementZ * .01);  // Switch to finer increment
+                    } else if (incrementZ == (initialIncrementZ * .01)) {
+                        currentZ -= incrementZ;  // Go back one step
+                        incrementZ = (initialIncrementZ * .001);  // Switch to finer increment
+                    } else {
+                        maxZ = currentZ;
+                        break;
+                    }
+                }
+                }
+
+                // Criteria for current division
+                TString criteriaZ = criteriaY + Form(" && %s>=%f && %s<%f", zAxis.Data(), minZ, zAxis.Data(), maxZ);
+
+                // Create histograms for this division and save to the ROOT file
+                TString histName = Form("h_%s_%s_Div%dd3", histXaxis.Data(), histYaxis.Data(), i * rows * zRows + j * zRows + k + 1);
+                TH2D *hist = new TH2D(histName, Form("%s>=%f && %s<%f && %s>=%f && %s<%f && %s>=%f && %s<%f", xAxis.Data(), minX, xAxis.Data(), maxX, yAxis.Data(), minY, yAxis.Data(), maxY, zAxis.Data(), minZ, zAxis.Data(), maxZ), histYbins, histMinX, histMaxX, histXbins, histMinY, histMaxY);
+                tree->Draw((std::string(histXaxis) + ":" + std::string(histYaxis) + " >> " + std::string(hist->GetName())).c_str(), Form("fScaleFactor * (%s)", criteriaZ.Data()), "colz");
+                gStyle->SetPalette(87);
+                hist->Write();
+                
+                // Set the new zaxis values for the next iteration
+                minZ = maxZ;
+            }
+            // Set the new yaxis values for the next iteration
+            minY = maxY;
+        }
+        minX = maxX;
+        // Set the new xaxis values for the next iteration
+    }
+
+    // Close the output file
+    outputFile->Close();
+
+    // Close the input file
+    file->Close();
+}
