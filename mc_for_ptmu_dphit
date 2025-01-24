@@ -1,0 +1,203 @@
+#include <TFile.h>
+#include <TTree.h>
+#include <TEventList.h>
+#include <TH2D.h>
+#include <TStyle.h>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <string>
+#include <TArrayD.h>
+
+// Define a conversion function
+double DegreesToRadians(double degrees) {
+    const double pi = 3.14159265358979323846;
+    return degrees * (pi / 180.0);
+}
+
+void mc_for_ptmu_dphit() {
+
+    // Open the file and get the TTree
+    TFile *file = TFile::Open("flat_GENIE_G18_10a_02_11a_50M.root");
+    TTree *tree = (TTree*)file->Get("FlatTree_VARS");
+
+    // Selection criteria
+    TString baseCriteria = "flagCC0piMINERvA_STV && Mode==2 && microbooneAngle>-999";
+
+    //Read in files
+    std::ifstream infile("h_dphit_ptmu_boundaries.tsv");
+    if (!infile.is_open()) {
+        std::cerr << "Failed to open the file." << std::endl;
+    }
+
+    // Declare the 2D vector to hold the data
+    std::vector<std::vector<double>> dphitBinBounds;
+
+    //Read in file
+    std::string line;
+
+    while (std::getline(infile, line)) {
+        std::cout << "Reading line: " << line << std::endl; // Debug print
+
+        std::istringstream iss(line);
+
+        while (iss) { // As long as there's data left in the stringstream
+            std::vector<double> tempVec;
+            // Ignore opening bracket '['
+            iss.ignore();
+            iss >> std::ws;  // skip any leading whitespace
+
+            double value;
+
+            while (iss >> value) {
+                std::cout << "1" << std::endl;  // Print "1"
+                tempVec.push_back(value);
+                // Ignore comma or closing bracket
+                char c;
+                iss >> c;
+                if (c == ']') {  // Break the loop if we reach the end of a bracket set
+                    break;
+                }
+            }
+            dphitBinBounds.push_back(tempVec);
+
+            if (iss.peek() == ',') {
+                char comma;
+                iss >> comma;
+            }
+            iss >> std::ws;  // skip any leading whitespace after a bracket set or comma
+        }
+    }
+
+    // For debugging: print dphitBinBounds
+    for (const auto &row : dphitBinBounds) {
+        for (double val : row) {
+            std::cout << val << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    // Open the bin file file
+    std::ifstream binfile("h_dphit_ptmu_binning.tsv");
+
+    if (!binfile.is_open()) {
+        std::cerr << "Error opening the file." << std::endl;
+    }
+
+    std::getline(binfile, line);
+
+    // Remove the square brackets from the beginning and end
+    line = line.substr(1, line.size() - 2);
+
+    // Use a stringstream to tokenize the string by comma
+    std::stringstream ss(line);
+    std::string token;
+    std::vector<double> values;
+
+    while (std::getline(ss, token, ',')) {
+        values.push_back(std::stod(token)); // convert the token to double and store in the vector
+    }
+
+    // Close the file
+    binfile.close();
+
+    // Now, create a ROOT 1D array and fill it with the data
+    TArrayD ptmu_dphit_bin(values.size());
+
+    for (size_t i = 0; i < values.size(); i++) {
+        ptmu_dphit_bin[i] = values[i];
+    }
+
+    // Test to see if the values are stored correctly
+    for (int i = 0; i < ptmu_dphit_bin.GetSize(); i++) {
+        std::cout << ptmu_dphit_bin[i] << " ";
+    }
+    std::cout << std::endl;
+
+    //Initialize output array
+    std::vector<std::vector<double>> jaggedArray;  // Changed int to double
+    for (int i = 0; i<11; i++){
+        jaggedArray.push_back(std::vector<double>(ptmu_dphit_bin[i], 0.0));  // Changed int to double and initializing with 0.0
+    }
+
+    //ptmu bin boundary values
+    std::vector<double> ptmuBinBounds = {0.0, 0.15, 0.25, 0.33, 0.4, 0.47, 0.55, 0.70, 0.85, 1.0, 1.25, 2.5}; 
+
+    // Create a TEventList to hold selected entries
+    TEventList *selectedEvents = new TEventList("selectedEvents");
+    tree->Draw(">>selectedEvents", baseCriteria, "goff"); 
+
+    // Declare variables for the tree branches
+    Float_t ptmu = 0.0;
+    Float_t dphit = 0.0;
+    Float_t microbooneAngle = 0.0;
+    Float_t q0 = 0.0;
+    Float_t q3 = 0.0;
+    Double_t fScaleFactor = 0.0;
+
+    // Link tree branches to the local variables
+    tree->SetBranchAddress("ptmu", &ptmu);
+    tree->SetBranchAddress("dphit", &dphit);
+    tree->SetBranchAddress("fScaleFactor", &fScaleFactor); 
+    tree->SetBranchAddress("microbooneAngle", &microbooneAngle);
+    tree->SetBranchAddress("q0", &q0);
+    tree->SetBranchAddress("q3", &q3);
+
+    Long64_t nSelected = selectedEvents->GetN();
+    std::cout << "Number of selected events: " << nSelected << std::endl; // Print the number of selected events
+
+    for (Long64_t i = 0; i < nSelected; i++) {
+        Long64_t entry = selectedEvents->GetEntry(i);
+        tree->GetEntry(entry);
+        
+        if (i % (nSelected/5) == 0) std::cout << i << "/" << nSelected << " (" << (double(i)/nSelected)*100 << "%)" << std::endl;
+        
+        //std::cout << "Processing entry: " << entry << " (Index: " << i << ")" << std::endl; // Print the current entry being processed
+        //std::cout << "ptmu value: " << ptmu << std::endl;
+        //std::cout << "dphit value: " << dphit << std::endl;
+        //std::cout << "MB Angle value: " << microbooneAngle << std::endl;
+        //std::cout << "q0/q3 value: " << q0/q3 << std::endl;
+        
+        for (int j = 0; j < ptmuBinBounds.size() - 1; j++) {
+            if (ptmu > ptmuBinBounds[j] && ptmu < ptmuBinBounds[j + 1]) {
+                //std::cout << "ptmu bin number: " << (j + 1) << std::endl;
+                //std::cout << "ptmu bounds: " << ptmuBinBounds[j] << " - " << ptmuBinBounds[j+1] << std::endl;
+                for (int k = 0; k < ptmu_dphit_bin[j]; k++) { 
+                    // Convert dphitBinBounds values from degrees to radians before comparison
+                    if (dphit > DegreesToRadians(dphitBinBounds[j][k]) && dphit < DegreesToRadians(dphitBinBounds[j][k + 1])) {
+                        //std::cout << "Dphit bin: " << k + 1 << std::endl;
+                        //std::cout << "Dphit range: [" << DegreesToRadians(dphitBinBounds[j][k]) << " - " << DegreesToRadians(dphitBinBounds[j][k + 1]) << "]" << std::endl; // Print the matched dphit range
+                        jaggedArray[j][k] += fScaleFactor;
+                        //std::cout << "jaggedArray[j][k]: " << jaggedArray[j][k] << std::endl;
+                        break;
+                    }                  
+                }
+                break;
+            }
+        }
+    }
+
+    // Cleanup
+    delete selectedEvents;
+
+    // Create name of histogram
+    TString histName = "ptmu_dphit_MC_2p2h.tsv";
+
+    // Write to a text file
+    std::ofstream outfile(histName);
+    if (!outfile.is_open()) {
+        std::cerr << "Failed to open the file for writing." << std::endl;
+    }
+
+    for (int i = 0; i < jaggedArray.size(); i++) {
+        for (int j = 0; j < jaggedArray[i].size(); j++) {
+            outfile << "(" << i+1 << "," << j+1 << ") " << jaggedArray[i][j] << std::endl;
+        }
+    }
+    outfile.close();
+
+    // Close the input file
+    file->Close();
+}
+
